@@ -25,15 +25,20 @@ app.use(bodyParser.json());
 
 app.post('/todos', (req, res) => {
     const { text } = req.body;
+
     if (!text || typeof text !== 'string') {
-        return res.status(400).json({ error: 'Invalid ToDo content.' });
+        res.status(400).json({ error: 'Invalid ToDo content.' });
+        return;
     }
+
     const newToDo: ToDo = {
         id: nextId++,
         text,
         done: false,
     };
+
     toDoList.push(newToDo);
+
     res.status(201).json(newToDo);
 });
 
@@ -43,13 +48,17 @@ app.get('/todos', (req, res) => {
 
 
 app.delete('/todos/:id', (req, res) => {
-    const id = parseInt(req.params.id); 
+    const id = parseInt(req.params.id);
     const index = toDoList.findIndex(todo => todo.id === id);
+    
     if (index === -1) {
-        return res.status(404).json({ error: 'ToDo not found.' });
+        res.status(404).json({ error: 'ToDo not found.' });
+        return;
     }
+
     toDoList.splice(index, 1);
-    res.status(204).send(); 
+
+    res.status(204).send();
 });
 
 app.put('/todos/:id', (req, res) => {
@@ -58,7 +67,8 @@ app.put('/todos/:id', (req, res) => {
     const toDo = toDoList.find(todo => todo.id === id);
 
     if (!toDo) {
-        return res.status(404).json({ error: 'ToDo not found.' });
+        res.status(404).json({ error: 'ToDo not found.' });
+        return;
     }
 
     if (typeof text === 'string') {
@@ -66,7 +76,7 @@ app.put('/todos/:id', (req, res) => {
     }
 
     if (typeof done === 'boolean') {
-        toDo.done = done;   
+        toDo.done = done;
     }
 
     res.json(toDo);
