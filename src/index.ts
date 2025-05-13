@@ -6,13 +6,13 @@ const app = express();
 const PORT = 3000;
 
 type ToDo = {
-    id: number;
+    id: string;
     text: string;
     done: boolean;
 };
 
 const toDoList: ToDo[] = [];
-let nextId = 1;
+//let nextId = 1;
 
 
 app.use(cors({
@@ -24,13 +24,21 @@ app.use(bodyParser.json());
 
 
 app.post('/todos', (req, res) => {
-    const { text } = req.body;
+    const {id, text, done } = req.body;
+    if (typeof id !== 'string') {
+        res.status(400).json({ error: 'Invalid ToDo ID.' });
+        return;
+    }
     if (!text || typeof text !== 'string') {
         res.status(400).json({ error: 'Invalid ToDo content.' });
         return;
     }
+    if (typeof done !== 'boolean') {
+        res.status(400).json({ error: 'Invalid ToDo status.' });
+        return;
+    }
     const newToDo: ToDo = {
-        id: nextId++,
+        id,
         text,
         done: false,
     };
@@ -45,18 +53,20 @@ app.get('/todos', (req, res) => {
 
 
 app.delete('/todos/:id', (req, res) => {
-    const id = parseInt(req.params.id); 
-    const index = toDoList.findIndex(todo => todo.id === id);
-    if (index === -1) {
+    const { id } = req.params;
+    const toDo = toDoList.find(todo => todo.id === id);
+    if (!toDo) {
         res.status(404).json({ error: 'ToDo not found.' });
         return;
     }
-    toDoList.splice(index, 1);
+    const updatedList = toDoList.filter(todo => todo.id !== id);
+    toDoList.length = 0;
+    toDoList.push(...updatedList);
     res.status(204).send(); 
 });
 
 app.put('/todos/:id', (req, res) => {
-    const id = parseInt(req.params.id);
+    const { id } = req.params;
     const { text, done } = req.body;
     const toDo = toDoList.find(todo => todo.id === id);
 
