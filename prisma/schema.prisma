@@ -10,8 +10,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  name String?
+  todos ToDo[]
+} 
+
 model ToDo {
   id String @id @default(cuid())
   text String
   done Boolean @default(false)
+  userId String
+  user User @relation(fields: [userId], references: [id])
 }
