@@ -63,7 +63,7 @@ const authenticateUser = async (req: Request, res: Response, next: NextFunction)
         next();
     } catch (error) {
         console.error('Authentication error:', error);
-        res.status(500).json({ error: 'Internal server error during authentication.' });
+        res.status(400).json({ error: 'Error during authentication.' });
     }
 };
 
@@ -92,7 +92,7 @@ app.post('/signup', async (req, res) => {
         res.status(201).json({ userId: newUser.id });
     } catch (error) {
         console.error('Error signing up:', error);
-        res.status(500).json({ error: 'Internal server error.' });
+        res.status(400).json({ error: 'Error singnig up.' });
     }
 });
 
@@ -129,7 +129,7 @@ app.get('/todos', authenticateUser, async (req, res) => {
         res.json(toDos);
     } catch (error) {
         console.error('Error fetching ToDos:', error);
-        res.status(500).json({ error: 'Internal server error.' });
+        res.status(400).json({ error: 'Internal server error.' });
     }
 });
 
@@ -153,7 +153,7 @@ app.delete('/todos/:id', authenticateUser, async (req, res) => {
         res.status(204).send();
     } catch (error) {
         console.error('Error deleting ToDo:', error);
-        res.status(500).json({ error: 'Internal server error.' });
+        res.status(400).json({ error: 'Internal server error.' });
     }
 });
 
@@ -182,7 +182,7 @@ app.put('/todos/:id', authenticateUser, async (req, res) => {
         res.status(200).json(updatedToDo);
     } catch (error) {
         console.error('Error updating ToDo:', error);
-        res.status(500).json({ error: 'Internal server error.' });
+        res.status(400).json({ error: 'Internal server error.' });
     }
 });
 
