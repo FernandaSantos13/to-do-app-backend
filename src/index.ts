@@ -1,75 +1,188 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import bodyParser from 'body-parser';
+import { PrismaClient, User } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 const app = express();
 const PORT = 3000;
-
-type ToDo = {
-    id: number;
-    text: string;
-    done: boolean;
-};
-
-const toDoList: ToDo[] = [];
-let nextId = 1;
-
 
 app.use(cors({
     methods: '*',
     origin: '*',
 }));
 
-app.use(bodyParser.json());
+app.use(express.json());
 
-
-app.post('/todos', (req, res) => {
-    const { text } = req.body;
-    if (!text || typeof text !== 'string') {
-        return res.status(400).json({ error: 'Invalid ToDo content.' });
+declare global {
+    namespace Express {
+        interface Request {
+            user: {
+                id: string;
+                email: string;
+            };
+        }
+        interface Response {
+            user: {
+                id: string;
+                email: string;
+            };  
+        }
     }
-    const newToDo: ToDo = {
-        id: nextId++,
-        text,
-        done: false,
-    };
-    toDoList.push(newToDo);
+}
+
+app.post('/login',async (req, res) => {
+    const { email } = req.body;
+    const user = await prisma.user.findUnique({
+        where: { email },
+    });
+    if (!user) {
+        res.status(404).json({ error: 'User not found.' });
+        return;
+    }   
+    res.json({ userId: user.id});
+});
+
+const authenticateUser = async (req: Request, res: Response, next: NextFunction) => {
+    const userId = req.header('user-id');
+    if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+    }
+    try{
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+        });
+
+        if (!user) {
+            res.status(401).json({ error: 'User Invalid. Sign up to create an account!' });
+            return;
+        };
+        req.user = user;
+        next();
+    } catch (error) {
+        console.error('Authentication error:', error);
+        res.status(400).json({ error: 'Error during authentication.' });
+    }
+};
+
+app.post('/signup', async (req, res) => {
+    const { email, name } = req.body;
+
+    if (!email || !name) {
+        res.status(400).json({ error: 'Email and name are mandotory.' });
+        return;
+    }
+
+    try {
+        const existingUser = await prisma.user.findUnique({
+            where: { email },
+        });
+        if (existingUser) {
+            res.status(400).json({ error: 'User already exists. Please sign in' });
+            return;
+        }
+        const newUser = await prisma.user.create({
+            data: {
+                email,
+                name,
+            },
+        });
+        res.status(201).json({ userId: newUser.id });
+    } catch (error) {
+        console.error('Error signing up:', error);
+        res.status(400).json({ error: 'Error singnig up.' });
+    }
+});
+
+app.post('/todos', authenticateUser, async (req, res) => {
+    const { id, text, done } = req.body;
+    if (typeof id !== 'string') {
+        res.status(400).json({ error: 'Invalid ToDo ID.' });
+        return;
+    }
+    if (!text || typeof text !== 'string') {
+        res.status(400).json({ error: 'Invalid ToDo content.' });
+        return;
+    }
+    if (typeof done !== 'boolean') {
+        res.status(400).json({ error: 'Invalid ToDo status.' });
+        return;
+    }
+    const newToDo = await prisma.toDo.create({
+        data: {
+            id,
+            text,
+            done: false,
+            userId: req.user.id,
+        },
+    });
     res.status(201).json(newToDo);
 });
 
-app.get('/todos', (req, res) => {
-    res.json(toDoList);
-});
-
-
-app.delete('/todos/:id', (req, res) => {
-    const id = parseInt(req.params.id); 
-    const index = toDoList.findIndex(todo => todo.id === id);
-    if (index === -1) {
-        return res.status(404).json({ error: 'ToDo not found.' });
+app.get('/todos', authenticateUser, async (req, res) => {
+    try {
+        const toDos = await prisma.toDo.findMany({
+            where: { userId: req.user.id },
+        });
+        res.json(toDos);
+    } catch (error) {
+        console.error('Error fetching ToDos:', error);
+        res.status(400).json({ error: 'Internal server error.' });
     }
-    toDoList.splice(index, 1);
-    res.status(204).send(); 
 });
 
-app.put('/todos/:id', (req, res) => {
-    const id = parseInt(req.params.id);
+
+app.delete('/todos/:id', authenticateUser, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const toDo = await prisma.toDo.findUnique({
+            where: { id },
+        });
+
+        if (!toDo || toDo.userId !== req.user.id) {
+            res.status(404).json({ error: 'ToDo not found or access denied.' });
+        }
+
+        await prisma.toDo.delete({
+            where: { id },
+        });
+
+        res.status(204).send();
+    } catch (error) {
+        console.error('Error deleting ToDo:', error);
+        res.status(400).json({ error: 'Internal server error.' });
+    }
+});
+
+
+app.put('/todos/:id', authenticateUser, async (req, res) => {
+    const { id } = req.params;
     const { text, done } = req.body;
-    const toDo = toDoList.find(todo => todo.id === id);
+    try {
+        const toDo = await prisma.toDo.findUnique({
+            where: { id },
+        });
 
-    if (!toDo) {
-        return res.status(404).json({ error: 'ToDo not found.' });
+        if (!toDo || toDo.userId !== req.user.id) {
+            res.status(404).json({ error: 'ToDo not found or access denied.' });
+            return
+        }
+
+        const updatedToDo = await prisma.toDo.update({
+            where: { id },
+            data: {
+                text: text !== undefined ? text : toDo.text,
+                done: done !== undefined ? done : toDo.done,
+            },
+        });
+
+        res.status(200).json(updatedToDo);
+    } catch (error) {
+        console.error('Error updating ToDo:', error);
+        res.status(400).json({ error: 'Internal server error.' });
     }
-
-    if (typeof text === 'string') {
-        toDo.text = text;
-    }
-
-    if (typeof done === 'boolean') {
-        toDo.done = done;   
-    }
-
-    res.json(toDo);
 });
 
 
