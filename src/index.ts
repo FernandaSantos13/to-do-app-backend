@@ -1,6 +1,5 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import bodyParser from 'body-parser';
 import { PrismaClient, User } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -13,7 +12,7 @@ app.use(cors({
     origin: '*',
 }));
 
-app.use(bodyParser.json());
+app.use(express.json());
 
 declare global {
     namespace Express {
